@@ -4,7 +4,9 @@ object Main {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        val printer: MyPrinter = MyPrinterImpl()
-        printer.printHelloWorld()
+        val firstPrinter: FirstPrinter = FirstPrinterImpl()
+        firstPrinter.hello()
+        val secondPrinter: SecondPrinter = SecondPrinterImpl()
+        secondPrinter.hello()
     }
 }

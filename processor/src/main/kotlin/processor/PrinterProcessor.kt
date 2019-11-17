@@ -7,7 +7,9 @@ import com.squareup.kotlinpoet.*
 import java.io.File
 import javax.annotation.processing.*
 import javax.lang.model.SourceVersion
+import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
+import javax.lang.model.element.VariableElement
 
 @AutoService(Processor::class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -32,9 +34,27 @@ class PrinterProcessor : AbstractProcessor() {
             print(it.simpleName.toString())
             val className = it.simpleName.toString()
             val pack = processingEnv.elementUtils.getPackageOf(it).toString()
-            val functions = mutableMapOf<String, String>()
-            roundEnv.getElementsAnnotatedWith(Print::class.java)?.forEach { print ->
-                functions[print.simpleName.toString()] = print.getAnnotation(Print::class.java).message
+            val functions = mutableListOf<Method>()
+            (it as TypeElement).enclosedElements.filter { element -> element.getAnnotation(Print::class.java) != null }.forEach { element ->
+                val arguments = mutableListOf<VariableElement>()
+                (element as ExecutableElement).parameters.forEach { variable ->
+                    arguments.add(variable)
+                }
+                /*val variableAsElement = processingEnv.typeUtils.asElement(element.asType())
+                if (variableAsElement != null) {
+                    val fieldsInArgument = ElementFilter.fieldsIn(variableAsElement.enclosedElements)
+                    fieldsInArgument.forEach { variable ->
+                        arguments.add(variable)
+                    }
+                }*/
+                //functions[element.simpleName.toString()] = element.getAnnotation(Print::class.java).message
+                functions.add(
+                    Method(
+                        element.simpleName.toString(),
+                        arguments,
+                        element.getAnnotation(Print::class.java).message
+                    )
+                )
             }
             generateClass(className, pack, functions)
         }
@@ -45,12 +65,20 @@ class PrinterProcessor : AbstractProcessor() {
         const val KAPT_KOTLIN_GENERATED_OPTION_NAME = "kapt.kotlin.generated"
     }
 
-    private fun generateClass(className: String, pack: String, functions: Map<String, String>) {
+    private fun generateClass(className: String, pack: String, functions: List<Method>) {
         val generatedClassName = "${className}Impl"
         val genClass = TypeSpec.classBuilder(generatedClassName).addSuperinterface(ClassName(pack, className))
 
         for (function in functions) {
-            genClass.addFunction(FunSpec.builder(function.key).addModifiers(KModifier.OVERRIDE).addStatement("println(\"${function.value}\")").build())
+            val genFunction = FunSpec.builder(function.name)
+                .addModifiers(KModifier.OVERRIDE)
+                .addStatement("println(\"${function.message}\")")
+
+            function.arguments.forEachIndexed { index, name ->
+                genFunction.addParameter(ParameterSpec.get(name))
+            }
+
+            genClass.addFunction(genFunction.build())
         }
 
         val file = FileSpec.builder(pack, generatedClassName).addType(genClass.build()).build()
@@ -58,4 +86,6 @@ class PrinterProcessor : AbstractProcessor() {
         val kaptKotlinGeneratedDir = processingEnv.options[KAPT_KOTLIN_GENERATED_OPTION_NAME]
         file.writeTo(File(kaptKotlinGeneratedDir, "$generatedClassName.kt"))
     }
+
+    private data class Method(val name: String, val arguments: List<VariableElement>, val message: String)
 }
