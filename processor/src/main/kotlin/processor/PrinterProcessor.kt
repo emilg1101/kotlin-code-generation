@@ -16,10 +16,6 @@ import javax.lang.model.element.VariableElement
 @SupportedOptions(PrinterProcessor.KAPT_KOTLIN_GENERATED_OPTION_NAME)
 class PrinterProcessor : AbstractProcessor() {
 
-    override fun init(processingEnv: ProcessingEnvironment?) {
-        super.init(processingEnv)
-    }
-
     override fun getSupportedAnnotationTypes(): MutableSet<String> {
         println("getSupportedAnnotationTypes")
         return mutableSetOf(Printer::class.java.name, Print::class.java.name)
@@ -40,14 +36,6 @@ class PrinterProcessor : AbstractProcessor() {
                 (element as ExecutableElement).parameters.forEach { variable ->
                     arguments.add(variable)
                 }
-                /*val variableAsElement = processingEnv.typeUtils.asElement(element.asType())
-                if (variableAsElement != null) {
-                    val fieldsInArgument = ElementFilter.fieldsIn(variableAsElement.enclosedElements)
-                    fieldsInArgument.forEach { variable ->
-                        arguments.add(variable)
-                    }
-                }*/
-                //functions[element.simpleName.toString()] = element.getAnnotation(Print::class.java).message
                 functions.add(
                     Method(
                         element.simpleName.toString(),
@@ -70,13 +58,17 @@ class PrinterProcessor : AbstractProcessor() {
         val genClass = TypeSpec.classBuilder(generatedClassName).addSuperinterface(ClassName(pack, className))
 
         for (function in functions) {
+            var messageToPrint = function.message
             val genFunction = FunSpec.builder(function.name)
                 .addModifiers(KModifier.OVERRIDE)
-                .addStatement("println(\"${function.message}\")")
 
-            function.arguments.forEachIndexed { index, name ->
-                genFunction.addParameter(ParameterSpec.get(name))
+            function.arguments.forEach { name ->
+                genFunction.addParameter(ParameterSpec.builder(name.simpleName.toString(), name.javaToKotlinType()).build())
+                print(name.simpleName)
+                messageToPrint = messageToPrint.replace("{${name.simpleName}}", "\${${name.simpleName}}")
             }
+
+            genFunction.addStatement("println(\"$messageToPrint\")")
 
             genClass.addFunction(genFunction.build())
         }

@@ -8,5 +8,6 @@ object Main {
         firstPrinter.hello()
         val secondPrinter: SecondPrinter = SecondPrinterImpl()
         secondPrinter.hello()
+        firstPrinter.hello("Emil")
     }
 }
